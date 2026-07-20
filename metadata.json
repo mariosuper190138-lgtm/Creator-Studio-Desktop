@@ -1,0 +1,12 @@
+{
+  "name": "Creator Studio Desktop",
+  "description": "Enterprise-ready desktop suite for managing multi-account workflows, automated proxies, and content scheduling simulation.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
