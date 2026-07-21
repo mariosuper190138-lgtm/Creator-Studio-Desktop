@@ -16,7 +16,15 @@ import {
   HardDrive,
   CheckCircle,
   Activity,
-  Maximize2
+  Maximize2,
+  Sparkles,
+  FolderOpen,
+  ShoppingBag,
+  Workflow,
+  Search,
+  Globe,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { CreatorAccount, PublishWorkflow, SystemLog, AppConfig } from './types';
 import SRSView from './components/SRSView';
@@ -26,6 +34,10 @@ import AccountManager from './components/AccountManager';
 import Scheduler from './components/Scheduler';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import SystemSettings from './components/SystemSettings';
+import AIContentSuite from './components/AIContentSuite';
+import WorkspaceTab from './components/WorkspaceTab';
+import PluginMarketplace from './components/PluginMarketplace';
+import DevOpsPanel from './components/DevOpsPanel';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('srs');
@@ -36,6 +48,22 @@ export default function App() {
   // Real-time animated system metrics
   const [cpuUsage, setCpuUsage] = useState<number>(2.4);
   const [ramUsage, setRamUsage] = useState<number>(72.8);
+
+  // Internationalization translation settings
+  const [lang, setLang] = useState<'th' | 'en'>('th');
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
+  const [commandSearch, setCommandSearch] = useState<string>('');
+  
+  // Dynamic modular feature flags
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({
+    autoBackup: true,
+    aiScriptAssist: true,
+    advancedMetrics: false,
+    proxyRotator: false,
+  });
+
+  // Notes state
+  const [notesText, setNotesText] = useState<string>(`# แผนงาน Creator Studio\n## รายการสำคัญต้องเช็ควันนี้\n- [ ] สลับกลุ่มเครือข่าย IP บัญชีเทส TikTok\n- [x] ตรวจสอบ Proxy บัญชี tech_guru\n- [ ] เจนสคริปต์วิดีโอใหม่ด้วย Gemini AI\n- [ ] สำรองฐานข้อมูล SQLite เป็นไฟล์ JSON\n\n## คลังไอเดียทำคลิป\n1. วิธีสร้างแบรนด์ตัวตนแบบไร้ต้นทุน\n2. เปิดเบื้องหลังการรันคิวโพสต์ Electron`);
 
   // Core Simulated SQLite database tables (Single source of truth)
   const [accounts, setAccounts] = useState<CreatorAccount[]>([
@@ -52,6 +80,10 @@ export default function App() {
     { id: '103', title: 'พาเที่ยวคาเฟ่ลับย่านอารีย์', accountId: '3', platform: 'tiktok', contentType: 'video', scheduledTime: '2026-07-20 15:00:00', status: 'completed', progress: 100, videoPath: '/Media/renders/vlog_cafe_secret.mp4', description: 'พาเที่ยวคาเฟ่แนววินเทจ ย่านอารีย์ซอย 4' },
     { id: '104', title: 'ด่วน! สรุปมาตรการกระตุ้นเศรษฐกิจใหม่', accountId: '4', platform: 'facebook', contentType: 'image_post', scheduledTime: '2026-07-21 12:00:00', status: 'queued', progress: 0, videoPath: '/Media/renders/infographics_news_7.png', description: 'สรุปครบถ้วนทุกมาตรการสำคัญกระตุ้นปากท้อง' }
   ]);
+
+  // Undo/Redo state stack
+  const [historyStack, setHistoryStack] = useState<Array<{ accounts: CreatorAccount[]; workflows: PublishWorkflow[] }>>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
   const [config, setConfig] = useState<AppConfig>({
     theme: 'dark-cyber',
@@ -81,6 +113,117 @@ export default function App() {
     }, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  // Initialize history stack with default values
+  useEffect(() => {
+    if (historyStack.length === 0) {
+      setHistoryStack([{ accounts, workflows }]);
+      setHistoryIndex(0);
+    }
+  }, []);
+
+  // Helper to save a structural state snapshot for Undo/Redo
+  const saveSnapshot = (nextAccounts: CreatorAccount[], nextWorkflows: PublishWorkflow[]) => {
+    setHistoryStack((prev) => {
+      const sliced = prev.slice(0, historyIndex + 1);
+      const updated = [...sliced, { accounts: nextAccounts, workflows: nextWorkflows }];
+      setHistoryIndex(updated.length - 1);
+      return updated;
+    });
+  };
+
+  const triggerUndo = () => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      setHistoryIndex(prevIndex);
+      setAccounts(historyStack[prevIndex].accounts);
+      setWorkflows(historyStack[prevIndex].workflows);
+      handleAddLog('Undo: ย้อนกลับประวัติการทำงานหลักสำเร็จ', 'SQLiteEngine', 'warn');
+    } else {
+      handleAddLog('Undo: ไม่มีประวัติการทำงานให้ย้อนกลับแล้ว', 'SQLiteEngine', 'warn');
+    }
+  };
+
+  const triggerRedo = () => {
+    if (historyIndex < historyStack.length - 1) {
+      const nextIndex = historyIndex + 1;
+      setHistoryIndex(nextIndex);
+      setAccounts(historyStack[nextIndex].accounts);
+      setWorkflows(historyStack[nextIndex].workflows);
+      handleAddLog('Redo: ทำซ้ำขั้นตอนหลักสำเร็จ', 'SQLiteEngine', 'warn');
+    } else {
+      handleAddLog('Redo: ไม่มีประวัติการทำงานให้ทำซ้ำแล้ว', 'SQLiteEngine', 'warn');
+    }
+  };
+
+  // Keyboard Shortcuts Listener (Ctrl+K, Ctrl+Z, Ctrl+Y, Ctrl+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K / Cmd+K opens Command Palette
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+      // Ctrl+Z triggers Undo
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        triggerUndo();
+      }
+      // Ctrl+Y triggers Redo
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        triggerRedo();
+      }
+      // Escape closes Command Palette
+      if (e.key === 'Escape') {
+        setCommandPaletteOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyStack, historyIndex, accounts, workflows]);
+
+  // Integrated History state update wrappers
+  const handleHistoryAddAccount = (acc: CreatorAccount) => {
+    const next = [...accounts, acc];
+    setAccounts(next);
+    saveSnapshot(next, workflows);
+  };
+
+  const handleHistoryUpdateAccount = (id: string, updated: Partial<CreatorAccount>) => {
+    const next = accounts.map(a => a.id === id ? { ...a, ...updated } : a);
+    setAccounts(next);
+    saveSnapshot(next, workflows);
+  };
+
+  const handleHistoryDeleteAccount = (id: string) => {
+    const nextAccs = accounts.filter(a => a.id !== id);
+    const nextWorkflows = workflows.filter(w => w.accountId !== id);
+    setAccounts(nextAccs);
+    setWorkflows(nextWorkflows);
+    saveSnapshot(nextAccs, nextWorkflows);
+    handleAddLog(`[CASCADE DELETE] ลบบัญชีผู้ใช้ ID: ${id} และคิวงานที่เกี่ยวข้องออกทั้งหมด`, 'SQLiteEngine', 'warn');
+  };
+
+  const handleHistoryAddWorkflow = (wf: PublishWorkflow) => {
+    const next = [...workflows, wf];
+    setWorkflows(next);
+    saveSnapshot(accounts, next);
+  };
+
+  const handleHistoryUpdateWorkflow = (id: string, updated: Partial<PublishWorkflow>) => {
+    const next = workflows.map(w => w.id === id ? { ...w, ...updated } : w);
+    setWorkflows(next);
+    // Avoid spamming history with continuous uploading percentage changes
+    if (updated.status !== undefined) {
+      saveSnapshot(accounts, next);
+    }
+  };
+
+  const handleHistoryReorderWorkflows = (newList: PublishWorkflow[]) => {
+    setWorkflows(newList);
+    saveSnapshot(accounts, newList);
+  };
 
   // Scroll logs to bottom when updated
   useEffect(() => {
@@ -168,7 +311,7 @@ export default function App() {
       <div className="w-full max-w-[1300px] bg-card-dark rounded-2xl border border-teal-muted/20 shadow-[0_20px_50px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col h-[850px] relative">
         
         {/* Mock Electron Titlebar */}
-        <div className="bg-card-dark/70 px-4 py-2.5 border-b border-teal-muted/15 flex justify-between items-center select-none">
+        <div className="bg-card-dark/70 px-4 py-2.5 border-b border-teal-muted/15 flex flex-col sm:flex-row justify-between items-center gap-3 select-none">
           <div className="flex items-center gap-2">
             {/* Window buttons */}
             <div className="flex gap-1.5 mr-2">
@@ -182,18 +325,66 @@ export default function App() {
             </span>
           </div>
 
-          {/* System Telemetry (Not cluttering outer background, contained logically in the titlebar) */}
-          <div className="flex items-center gap-4 text-[10px] font-mono text-teal-muted">
-            <div className="flex items-center gap-1">
-              <Cpu className="w-3.5 h-3.5 text-teal-accent" />
-              <span>CPU: <strong className="text-white">{cpuUsage}%</strong></span>
+          {/* Interactive Global Tools (Search, Undo/Redo, Language) */}
+          <div className="flex items-center gap-3.5 text-[10px] font-mono text-teal-muted flex-wrap">
+            {/* Undo / Redo */}
+            <div className="flex items-center gap-1.5 bg-bg-dark/60 p-1 rounded-lg border border-teal-muted/15">
+              <button 
+                onClick={triggerUndo}
+                className="p-1 hover:text-white hover:bg-teal-accent/5 rounded transition-all cursor-pointer flex items-center gap-1"
+                title="ย้อนกลับการทำงาน (Ctrl+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5 text-teal-accent" />
+                <span>Undo</span>
+              </button>
+              <span className="text-teal-muted/20">|</span>
+              <button 
+                onClick={triggerRedo}
+                className="p-1 hover:text-white hover:bg-teal-accent/5 rounded transition-all cursor-pointer flex items-center gap-1"
+                title="ทำซ้ำการทำงาน (Ctrl+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Redo</span>
+              </button>
             </div>
-            <div className="flex items-center gap-1">
-              <Activity className="w-3.5 h-3.5 text-indigo-400" />
-              <span>RAM: <strong className="text-white">{ramUsage}MB</strong></span>
-            </div>
-            <div className="flex items-center gap-1 bg-teal-accent/10 border border-teal-accent/20 rounded-md px-2 py-0.5 text-teal-accent">
-              <span>DB STATUS: <strong className="text-white">SQLITE_ONLINE</strong></span>
+
+            {/* Quick Command Search */}
+            <button
+              onClick={() => setCommandPaletteOpen(true)}
+              className="px-2.5 py-1 bg-bg-dark/50 border border-teal-muted/15 rounded-lg flex items-center gap-1.5 hover:border-teal-accent/40 text-teal-accent font-black transition-all cursor-pointer"
+              title="ค้นหาด่วนพาสเวิร์ด/คำสั่ง (Ctrl+K)"
+            >
+              <Search className="w-3.5 h-3.5 text-teal-accent" />
+              <span>COMMAND PALETTE</span>
+            </button>
+
+            {/* Language Switcher */}
+            <button
+              onClick={() => {
+                const nextLang = lang === 'th' ? 'en' : 'th';
+                setLang(nextLang);
+                handleAddLog(`[LOCALIZATION] ปรับเปลี่ยนภาษาแสดงผลหน้าจอหลักเป็น: [${nextLang.toUpperCase()}]`, 'MainProcess', 'info');
+              }}
+              className="px-2.5 py-1 bg-teal-accent/5 border border-teal-accent/20 rounded-lg flex items-center gap-1.5 text-teal-accent hover:bg-teal-accent hover:text-bg-dark font-black transition-all cursor-pointer"
+              title="สลับภาษา TH / EN"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>LANG: {lang.toUpperCase()}</span>
+            </button>
+
+            {/* System Telemetry */}
+            <div className="flex items-center gap-3 pl-2 border-l border-teal-muted/15">
+              <div className="flex items-center gap-1">
+                <Cpu className="w-3.5 h-3.5 text-teal-accent" />
+                <span>CPU: <strong className="text-white">{cpuUsage}%</strong></span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                <span>RAM: <strong className="text-white">{ramUsage}MB</strong></span>
+              </div>
+              <div className="hidden lg:flex items-center gap-1 bg-teal-accent/10 border border-teal-accent/20 rounded-md px-2 py-0.5 text-teal-accent">
+                <span>DB: <strong>SQLITE_ONLINE</strong></span>
+              </div>
             </div>
           </div>
         </div>
@@ -244,7 +435,7 @@ export default function App() {
                 </div>
 
                 {/* Sidebar Navigation Options */}
-                <div className="space-y-1" id="sidebar-menu-tabs">
+                <div className="space-y-1 overflow-y-auto max-h-[480px] pr-1 scrollbar-thin" id="sidebar-menu-tabs">
                   <button
                     onClick={() => setActiveTab('srs')}
                     className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
@@ -254,7 +445,7 @@ export default function App() {
                     }`}
                   >
                     <Layers className="w-4 h-4" />
-                    1 &amp; 2. Requirements &amp; Arch
+                    {lang === 'th' ? '1 & 2. ความต้องการ & สถาปัตยกรรม' : '1 & 2. Requirements & Arch'}
                   </button>
 
                   <button
@@ -266,7 +457,7 @@ export default function App() {
                     }`}
                   >
                     <Database className="w-4 h-4" />
-                    3. SQLite Schema &amp; Term
+                    {lang === 'th' ? '3. โครงสร้าง SQLite Database' : '3. SQLite Schema & Term'}
                   </button>
 
                   <button
@@ -278,7 +469,19 @@ export default function App() {
                     }`}
                   >
                     <Terminal className="w-4 h-4" />
-                    5. API &amp; IPC Bridge
+                    {lang === 'th' ? '5. IPC API Preloader' : '5. API & IPC Bridge'}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('workspace')}
+                    className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                      activeTab === 'workspace'
+                        ? 'bg-teal-accent text-bg-dark shadow-[0_0_10px_rgba(102,252,241,0.15)] font-black'
+                        : 'text-teal-muted hover:bg-teal-accent/5 hover:text-white'
+                    }`}
+                  >
+                    <FolderOpen className="w-4 h-4 text-emerald-400" />
+                    {lang === 'th' ? '4. โน้ตย่อ & หน้าจอแยก (Workspace)' : '4. Workspace & Split View'}
                   </button>
 
                   <button
@@ -290,7 +493,7 @@ export default function App() {
                     }`}
                   >
                     <Users className="w-4 h-4" />
-                    11. Account Manager (Repo)
+                    {lang === 'th' ? '11. จัดการบัญชีหลัก (Repo)' : '11. Account Manager (Repo)'}
                   </button>
 
                   <button
@@ -302,7 +505,7 @@ export default function App() {
                     }`}
                   >
                     <Calendar className="w-4 h-4" />
-                    12. Workflow Queue (Serv)
+                    {lang === 'th' ? '12. คิวโพสต์วิดีโอ (Service)' : '12. Workflow Queue (Serv)'}
                   </button>
 
                   <button
@@ -314,7 +517,43 @@ export default function App() {
                     }`}
                   >
                     <BarChart3 className="w-4 h-4" />
-                    13. Real-Time Analytics
+                    {lang === 'th' ? '13. รายงานความคืบหน้าเรียลไทม์' : '13. Real-Time Analytics'}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('ai-suite')}
+                    className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                      activeTab === 'ai-suite'
+                        ? 'bg-teal-accent text-bg-dark shadow-[0_0_10px_rgba(102,252,241,0.15)] font-black'
+                        : 'text-teal-muted hover:bg-teal-accent/5 hover:text-white animate-pulse-subtle'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    {lang === 'th' ? '🤖 15. ชุดตัวช่วยสร้างด้วย AI' : '🤖 15. AI Content Suite'}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('plugins')}
+                    className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                      activeTab === 'plugins'
+                        ? 'bg-teal-accent text-bg-dark shadow-[0_0_10px_rgba(102,252,241,0.15)] font-black'
+                        : 'text-teal-muted hover:bg-teal-accent/5 hover:text-white'
+                    }`}
+                  >
+                    <ShoppingBag className="w-4 h-4 text-indigo-400" />
+                    {lang === 'th' ? '🧩 ตลาดดาวน์โหลดปลั๊กอิน' : '🧩 Plugin Marketplace'}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('devops')}
+                    className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                      activeTab === 'devops'
+                        ? 'bg-teal-accent text-bg-dark shadow-[0_0_10px_rgba(102,252,241,0.15)] font-black'
+                        : 'text-teal-muted hover:bg-teal-accent/5 hover:text-white'
+                    }`}
+                  >
+                    <Workflow className="w-4 h-4 text-pink-400" />
+                    {lang === 'th' ? '📦 ท่อลำเลียง CI/CD & DevOps' : '📦 DevOps & CI/CD Suite'}
                   </button>
 
                   <button
@@ -326,7 +565,7 @@ export default function App() {
                     }`}
                   >
                     <Settings className="w-4 h-4" />
-                    9 &amp; 14. Configuration &amp; Backup
+                    {lang === 'th' ? '9 & 14. ตั้งค่า & สำรองข้อมูล' : '9 & 14. Configuration & Backup'}
                   </button>
                 </div>
               </div>
@@ -378,13 +617,9 @@ export default function App() {
                 {activeTab === 'accounts' && (
                   <AccountManager
                     accounts={accounts}
-                    onAddAccount={(acc) => setAccounts((prev) => [...prev, acc])}
-                    onUpdateAccount={(id, updated) => setAccounts((prev) => prev.map(a => a.id === id ? { ...a, ...updated } : a))}
-                    onDeleteAccount={(id) => {
-                      setAccounts((prev) => prev.filter(a => a.id !== id));
-                      setWorkflows((prev) => prev.filter(w => w.accountId !== id)); // Cascade Deletion Simulation!
-                      handleAddLog(`[CASCADE DELETE] ลบบัญชีผู้ใช้ ID: ${id} และคิวงานที่เกี่ยวข้องออกทั้งหมด`, 'SQLiteEngine', 'warn');
-                    }}
+                    onAddAccount={handleHistoryAddAccount}
+                    onUpdateAccount={handleHistoryUpdateAccount}
+                    onDeleteAccount={handleHistoryDeleteAccount}
                     onAddLog={handleAddLog}
                   />
                 )}
@@ -393,13 +628,51 @@ export default function App() {
                   <Scheduler
                     workflows={workflows}
                     accounts={accounts}
-                    onAddWorkflow={(wf) => setWorkflows((prev) => [...prev, wf])}
-                    onUpdateWorkflow={(id, updated) => setWorkflows((prev) => prev.map(w => w.id === id ? { ...w, ...updated } : w))}
+                    onAddWorkflow={handleHistoryAddWorkflow}
+                    onUpdateWorkflow={handleHistoryUpdateWorkflow}
+                    onReorderWorkflows={handleHistoryReorderWorkflows}
                     onAddLog={handleAddLog}
                   />
                 )}
 
+                {activeTab === 'workspace' && (
+                  <WorkspaceTab
+                    accounts={accounts}
+                    workflows={workflows}
+                    notes={notesText}
+                    onUpdateNotes={setNotesText}
+                    onAddLog={handleAddLog}
+                    onAddAccount={handleHistoryAddAccount}
+                    onUpdateAccount={handleHistoryUpdateAccount}
+                    onDeleteAccount={handleHistoryDeleteAccount}
+                    onAddWorkflow={handleHistoryAddWorkflow}
+                    onUpdateWorkflow={handleHistoryUpdateWorkflow}
+                    onReorderWorkflows={handleHistoryReorderWorkflows}
+                  />
+                )}
+
                 {activeTab === 'analytics' && <AnalyticsPanel accounts={accounts} />}
+
+                {activeTab === 'ai-suite' && (
+                  <AIContentSuite accounts={accounts} onAddLog={handleAddLog} />
+                )}
+
+                {activeTab === 'plugins' && (
+                  <PluginMarketplace
+                    featureFlags={featureFlags}
+                    onUpdateFeatureFlags={(nextFlags) => {
+                      setFeatureFlags(nextFlags);
+                      handleAddLog(`[FEATURE FLAG] ได้รับการอัปเดตชุดธงฟีเจอร์แอปพลิเคชันสำเร็จ`, 'MainProcess', 'info');
+                    }}
+                    onAddLog={handleAddLog}
+                  />
+                )}
+
+                {activeTab === 'devops' && (
+                  <DevOpsPanel
+                    onAddLog={handleAddLog}
+                  />
+                )}
 
                 {activeTab === 'settings' && (
                   <SystemSettings
@@ -443,6 +716,117 @@ export default function App() {
                   ))}
                   <div ref={logEndRef} />
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Command Palette Overlay Modal */}
+        {commandPaletteOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-dark/80 backdrop-blur-md">
+            <div className="w-full max-w-xl bg-card-dark border border-teal-accent/30 rounded-2xl shadow-[0_0_50px_rgba(102,252,241,0.15)] overflow-hidden flex flex-col">
+              {/* Header Search Field */}
+              <div className="p-4 border-b border-teal-muted/10 flex items-center gap-3">
+                <Search className="w-5 h-5 text-teal-accent" />
+                <input
+                  type="text"
+                  placeholder={lang === 'th' ? 'ค้นหาคำสั่งในระบบ... (Esc เพื่อปิด)' : 'Search commands... (Esc to exit)'}
+                  value={commandSearch}
+                  onChange={(e) => setCommandSearch(e.target.value)}
+                  className="flex-1 bg-transparent border-none text-white focus:outline-none placeholder-teal-muted/50 text-sm font-sans"
+                  autoFocus
+                />
+                <button
+                  onClick={() => setCommandPaletteOpen(false)}
+                  className="text-teal-muted hover:text-rose-400 font-mono text-[10px] bg-bg-dark px-2 py-1 rounded border border-teal-muted/10"
+                >
+                  ESC
+                </button>
+              </div>
+
+              {/* Commands List */}
+              <div className="max-h-[350px] overflow-y-auto p-2 space-y-1">
+                {[
+                  { icon: <Monitor className="w-4 h-4 text-teal-accent" />, labelTh: 'หน้าสถาปัตยกรรม & เอกสารระบบ (SRS View)', labelEn: 'System Architecture & Specs (SRS View)', action: () => setActiveTab('srs') },
+                  { icon: <Database className="w-4 h-4 text-indigo-400" />, labelTh: 'ฐานข้อมูล SQLite Explorer', labelEn: 'SQLite Database Explorer', action: () => setActiveTab('db') },
+                  { icon: <Cpu className="w-4 h-4 text-emerald-400" />, labelTh: 'คลังเชื่อมต่อ API (IPCRouter Sandbox)', labelEn: 'API & IPC Router Sandbox', action: () => setActiveTab('api') },
+                  { icon: <FolderOpen className="w-4 h-4 text-amber-400" />, labelTh: 'เวิร์กสเปซโน้ต & จัดการไฟล์แนบ (Workspace)', labelEn: 'Workspace Notes & Attachments', action: () => setActiveTab('workspace') },
+                  { icon: <Users className="w-4 h-4 text-cyan-400" />, labelTh: 'จัดการบัญชีหลัก (Account Repository)', labelEn: 'Account Repository Manager', action: () => setActiveTab('accounts') },
+                  { icon: <Calendar className="w-4 h-4 text-pink-400" />, labelTh: 'ตารางงานคิวโพสต์วิดีโอ (Scheduler Service)', labelEn: 'Workflow Queue & Scheduler', action: () => setActiveTab('scheduler') },
+                  { icon: <BarChart3 className="w-4 h-4 text-orange-400" />, labelTh: 'รายงานกราฟความคืบหน้าเรียลไทม์ (Analytics)', labelEn: 'Real-Time Performance Analytics', action: () => setActiveTab('analytics') },
+                  { icon: <Sparkles className="w-4 h-4 text-yellow-400 animate-pulse" />, labelTh: 'ระบบปัญญาประดิษฐ์สร้างเนื้อหา (AI Content Suite)', labelEn: 'AI Automated Content Suite', action: () => setActiveTab('ai-suite') },
+                  { icon: <ShoppingBag className="w-4 h-4 text-violet-400" />, labelTh: 'ร้านติดตั้งแอปปลั๊กอิน (Plugin Marketplace)', labelEn: 'Plugin & Extension Marketplace', action: () => setActiveTab('plugins') },
+                  { icon: <Workflow className="w-4 h-4 text-rose-400" />, labelTh: 'หน้าควบคุม DevOps & CI/CD Pipeline', labelEn: 'DevOps & CI/CD Control Center', action: () => setActiveTab('devops') },
+                  { icon: <Settings className="w-4 h-4 text-slate-400" />, labelTh: 'หน้าตั้งค่าระบบสำรองข้อมูล (System Settings)', labelEn: 'System Configuration & Backups', action: () => setActiveTab('settings') },
+                  { icon: <Globe className="w-4 h-4 text-sky-400" />, labelTh: `สลับภาษาแอปพลิเคชัน (ปัจจุบัน: ${lang.toUpperCase()})`, labelEn: `Switch Language (Current: ${lang.toUpperCase()})`, action: () => setLang(lang === 'th' ? 'en' : 'th') },
+                  { icon: <Lock className="w-4 h-4 text-red-400" />, labelTh: 'ล็อกหน้าจอหลักทันที (Security Lock)', labelEn: 'Lock Dashboard Screen Immediately', action: () => setIsLocked(true) },
+                  { icon: <Activity className="w-4 h-4 text-lime-400" />, labelTh: 'ล้างขยะหน่วยความจำ & รวบรวมขยะคอมพิวเตอร์ (System GC)', labelEn: 'Memory Garbage Collection (System GC)', action: () => handleSystemCleanup() },
+                ]
+                  .filter(cmd => {
+                    const term = commandSearch.toLowerCase();
+                    return cmd.labelTh.toLowerCase().includes(term) || cmd.labelEn.toLowerCase().includes(term);
+                  })
+                  .map((cmd, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        cmd.action();
+                        setCommandPaletteOpen(false);
+                        setCommandSearch('');
+                      }}
+                      className="w-full text-left p-3 hover:bg-teal-accent/10 rounded-xl flex items-center justify-between transition-all group border border-transparent hover:border-teal-accent/20"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-bg-dark rounded-lg border border-teal-muted/10 group-hover:border-teal-accent/20">
+                          {cmd.icon}
+                        </div>
+                        <span className="text-xs font-sans text-teal-muted group-hover:text-white transition-colors">
+                          {lang === 'th' ? cmd.labelTh : cmd.labelEn}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[9px] text-teal-muted/40 group-hover:text-teal-accent transition-colors">
+                        ENTER ↵
+                      </span>
+                    </button>
+                  ))}
+
+                {[
+                  { icon: <Undo2 className="w-4 h-4 text-emerald-400" />, labelTh: 'ย้อนกลับประวัติการทำงาน (Undo - Ctrl+Z)', labelEn: 'Undo State Change (Ctrl+Z)', action: () => triggerUndo() },
+                  { icon: <Redo2 className="w-4 h-4 text-emerald-400" />, labelTh: 'ทำซ้ำขั้นตอนถัดไป (Redo - Ctrl+Y)', labelEn: 'Redo State Change (Ctrl+Y)', action: () => triggerRedo() }
+                ]
+                  .filter(cmd => {
+                    const term = commandSearch.toLowerCase();
+                    return cmd.labelTh.toLowerCase().includes(term) || cmd.labelEn.toLowerCase().includes(term);
+                  })
+                  .map((cmd, idx) => (
+                    <button
+                      key={`hist-${idx}`}
+                      onClick={() => {
+                        cmd.action();
+                        setCommandPaletteOpen(false);
+                        setCommandSearch('');
+                      }}
+                      className="w-full text-left p-3 hover:bg-emerald-400/10 rounded-xl flex items-center justify-between transition-all group border border-transparent hover:border-emerald-400/20"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-bg-dark rounded-lg border border-teal-muted/10 group-hover:border-emerald-400/20">
+                          {cmd.icon}
+                        </div>
+                        <span className="text-xs font-sans text-teal-muted group-hover:text-white transition-colors">
+                          {lang === 'th' ? cmd.labelTh : cmd.labelEn}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[9px] text-teal-muted/40 group-hover:text-emerald-400 transition-colors">
+                        ENTER ↵
+                      </span>
+                    </button>
+                  ))}
+              </div>
+
+              {/* Statusbar footer */}
+              <div className="p-3 bg-bg-dark border-t border-teal-muted/10 flex justify-between items-center text-[9px] font-mono text-teal-muted select-none">
+                <span>PRESS ESC TO CLOSE</span>
+                <span>TOTAL SHORTCUTS ACTIVE</span>
               </div>
             </div>
           </div>
